@@ -2,6 +2,7 @@ import os
 import json
 import pandas as pd
 from typing import List, Dict, Any
+from utils import TreeNode, build_thread_tree
 
 def load_pheme_data(data_dir: str) -> List[Dict[str, Any]]:
     """
@@ -35,27 +36,25 @@ def preprocess_text(text: str) -> str:
     # Add more preprocessing steps as needed (lowercasing, removing URLs, etc.)
     return text.lower().strip()
 
-def build_thread_tree(thread: Dict[str, Any]) -> Dict[str, Any]:
+def build_thread_tree(thread: Dict[str, Any]) -> TreeNode:
     """
-    Build a tree structure from the thread data.
+    Build a tree structure from the thread data using DSA TreeNode.
 
     Args:
         thread: Thread data from JSON.
 
     Returns:
-        Tree structure.
+        Root TreeNode of the thread.
     """
-    # Implement tree building logic
-    # This is a placeholder; actual implementation depends on PHEME structure
-    root = thread.get('root', {})
-    replies = thread.get('replies', [])
-    # Build tree using data structures
-    return {'root': root, 'replies': replies}
+    return build_thread_tree(thread)  # Use the function from utils
 
 if __name__ == "__main__":
     data_dir = "../data/raw"
     threads = load_pheme_data(data_dir)
     print(f"Loaded {len(threads)} threads")
+    # Build trees
+    trees = [build_thread_tree(thread) for thread in threads]
+    print(f"Built {len(trees)} thread trees")
     # Save processed data
     processed_dir = "../data/processed"
     os.makedirs(processed_dir, exist_ok=True)

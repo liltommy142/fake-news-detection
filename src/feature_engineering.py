@@ -3,6 +3,7 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 from typing import Dict, List, Any
+from utils import TreeNode
 
 # Download NLTK data if needed
 nltk.download('vader_lexicon')
@@ -30,43 +31,32 @@ def extract_text_features(text: str) -> Dict[str, float]:
     }
     return features
 
-def extract_structural_features(tree: Dict[str, Any]) -> Dict[str, float]:
+def extract_structural_features(tree: TreeNode) -> Dict[str, float]:
     """
-    Extract structural features from the thread tree.
+    Extract structural features from the thread tree using DSA.
 
     Args:
-        tree: Thread tree structure.
+        tree: Root TreeNode of the thread.
 
     Returns:
         Dictionary of features.
     """
-    # Placeholder for structural features
-    # E.g., tree depth, number of nodes, etc.
-    replies = tree.get('replies', [])
-    depth = calculate_tree_depth(tree)
-    breadth = len(replies)
+    depth = tree.get_depth()
+    size = tree.get_size()
+    breadth = len(tree.children)
+
+    # Additional DSA-based features
+    preorder_traversal = tree.traverse_preorder()
+    inorder_traversal = tree.traverse_inorder()
 
     features = {
         'tree_depth': depth,
+        'tree_size': size,
         'tree_breadth': breadth,
-        'num_replies': len(replies),
+        'preorder_length': len(preorder_traversal),
+        'inorder_length': len(inorder_traversal),
     }
     return features
-
-def calculate_tree_depth(tree: Dict[str, Any]) -> int:
-    """
-    Calculate the depth of the tree.
-
-    Args:
-        tree: Tree structure.
-
-    Returns:
-        Maximum depth.
-    """
-    # Implement tree traversal
-    if not tree.get('replies'):
-        return 1
-    return 1 + max(calculate_tree_depth(reply) for reply in tree['replies'])
 
 def vectorize_text(texts: List[str]) -> np.ndarray:
     """

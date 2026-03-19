@@ -7,10 +7,10 @@ This project focuses on detecting fake news (rumors) from Twitter threads using 
 - **PHEME dataset**: Includes events like charliehebdo, ebola, ferguson, etc.
 - **Structure**: Data is organized as conversation threads in a tree-like format.
 
-## Approach
-1. Parse Twitter threads into tree structures using data structures.
-2. Extract features from text content and structural properties (e.g., depth, breadth, user interactions).
-3. Train a machine learning classification model to distinguish between real and fake news.
+## Data Structures and Algorithms (DSA) Implementation
+- **Tree Structure**: Custom `TreeNode` class for representing Twitter threads as trees.
+- **Tree Operations**: Implemented depth calculation, subtree size, preorder and inorder traversals.
+- **Feature Engineering**: Utilizes tree traversals and structural metrics for rumor detection.
 
 ## Project Structure
 ```
