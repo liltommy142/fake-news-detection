@@ -1,91 +1,70 @@
-# Fake News Detection using DSA & Machine Learning
+# 🕵️‍♂️ Fake News Detection: Graph-based Spread Analysis
+**Course**: Data Structures and Algorithms (DSA) - HCMUS  
+**Team**: 4lg0r1thm  
 
-## Overview
-This project focuses on detecting fake news (rumors) from Twitter threads using data structures and machine learning techniques. It utilizes the PHEME dataset to analyze conversation threads structured as trees.
+## 📌 Overview
+Dự án tập trung vào việc nhận diện tin giả (rumors) trên nền tảng mạng xã hội Twitter bằng cách kết hợp giữa **Cấu trúc dữ liệu Đồ thị/Cây** và **Machine Learning**. Thay vì chỉ phân tích nội dung văn bản, hệ thống này tập trung vào **cấu trúc lan truyền** (propagation structure) của các luồng hội thoại (conversation threads).
 
-## Dataset
-- **PHEME dataset**: Includes events like charliehebdo, ebola, ferguson, etc.
-- **Structure**: Data is organized as conversation threads in a tree-like format.
 
-## Data Structures and Algorithms (DSA) Implementation
-- **Tree Structure**: Custom `TreeNode` class for representing Twitter threads as trees.
-- **Tree Operations**: Implemented depth calculation, subtree size, preorder and inorder traversals.
-- **Feature Engineering**: Utilizes tree traversals and structural metrics for rumor detection.
 
-## Project Structure
-```
+## 🏗️ DSA Core Implementation
+Điểm khác biệt của đồ án này là việc mô hình hóa dữ liệu Twitter dưới dạng **Tree Structure**.
+
+*   **Tree Modeling**: Mỗi Tweet gốc là `Root`, các lượt Reply là `Children`.
+*   **Traversals (Duyệt cây)**: 
+    *   Sử dụng **BFS (Breadth-First Search)** để tính toán độ rộng lan truyền theo thời gian.
+    *   Sử dụng **DFS (Depth-First Search)** để xác định độ sâu của cuộc hội thoại (Conversation Depth).
+*   **Structural Features**: Trích xuất các thuộc tính từ cấu trúc cây để đưa vào Model:
+    *   *Depth*: Độ sâu tối đa của luồng phản hồi.
+    *   *Breadth*: Số lượng phản hồi trung bình tại mỗi tầng.
+    *   *Structural Virality*: Chỉ số lan truyền dựa trên khoảng cách trung bình giữa các node.
+
+## 📊 Dataset: PHEME
+*   Sử dụng tập dữ liệu **PHEME** bao gồm các sự kiện lớn (Ferguson, Charlie Hebdo, Germanwings crash, v.v.)
+*   Dữ liệu được tổ chức dưới dạng các file JSON đại diện cho các nhánh hội thoại (threads).
+
+## 📂 Project Structure
+```bash
 .
-├── README.md
-├── requirements.txt
-├── .gitignore
 ├── data/
-│   ├── raw/          # Raw dataset files
-│   └── processed/    # Preprocessed data
-├── notebooks/
-│   └── exploration.ipynb  # Jupyter notebook for data exploration
-├── results/
-│   ├── metrics.txt   # Model evaluation metrics
-│   └── figures/      # Plots and visualizations
-└── src/
-    ├── preprocessing.py     # Data loading and cleaning
-    ├── feature_engineering.py  # Feature extraction
-    ├── model.py             # Model training and evaluation
-    └── utils.py             # Utility functions
+│   ├── raw/            # Dataset gốc (PHEME)
+│   └── processed/      # Dữ liệu sau khi dựng cây và trích xuất đặc trưng
+├── notebooks/          # EDA và thử nghiệm thuật toán
+├── src/
+│   ├── full_preprocessing.py     # Tải dữ liệu, xây dựng cây và làm sạch
+│   ├── feature_engineering.py    # Chuyển đổi cấu trúc cây thành Vector số học
+│   ├── mini_preprocessing.py     # Xử lý dữ liệu nhỏ
+│   ├── utils.py                  # Các hàm tiện ích và TreeNode
+│   └── requirements.txt           # Dependencies cụ thể
+├── requirements.txt    # Danh sách thư viện chính
+└── .gitignore          # Đã loại bỏ .venv, .exe, và dữ liệu nặng
 ```
 
-## Installation
-1. Clone the repository:
+## 🚀 Quick Start
+1. **Clone & Setup**:
    ```bash
    git clone <repository-url>
    cd fake-news-detection
-   ```
-
-2. Install dependencies:
-   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Hoặc .venv\Scripts\activate trên Windows
    pip install -r requirements.txt
    ```
 
-3. Download the PHEME dataset and place it in `data/raw/`.
-
-## Usage
-Run the entire pipeline:
-```bash
-python run.py
-```
-
-Or run individual steps:
-1. Preprocess the data:
+2. **Run Preprocessing Pipeline**:
    ```bash
-   python src/preprocessing.py
-   ```
-
-2. Extract features:
-   ```bash
+   # Xử lý dữ liệu và xây dựng cây từ PHEME dataset
+   python src/full_preprocessing.py
+   
+   # Trích xuất đặc trưng từ cấu trúc cây
    python src/feature_engineering.py
    ```
 
-3. Train the model:
-   ```bash
-   python src/model.py
-   ```
+3. **View Results**:
+   - Dữ liệu xử lý được lưu trong `data/processed/`
+   - Kết quả đánh giá mô hình trong `results/metrics.txt`
+   - Biểu đồ trực quan trong `results/figures/`
 
-4. View results in `results/metrics.txt` and `results/figures/`.
-
-## Results
-- **Accuracy**: 0.8500
-- **Precision**: 0.8333
-- **Recall**: 0.8571
-- **F1-Score**: 0.8451
-
-## Dependencies
-- numpy
-- pandas
-- scikit-learn
-- nltk
-- matplotlib
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contributing
-[Add contribution guidelines]
+## 👥 Contributors (Team 4lg0r1thm)
+* **Lil'Tommy**
+* **Loc**
+* **Thien Khanh**
