@@ -5,7 +5,6 @@
 #include <vector>
 #include <iomanip>
 #include <algorithm>
-#include <regex>
 #include <deque>
 #include "json.hpp"
 
@@ -13,59 +12,53 @@ namespace fs = std::filesystem;
 using json = nlohmann::json;
 using namespace std;
 
-// --- HEURISTIC 6.0: KHÁCH QUAN HÓA & LOẠI BỎ ĐIỂM 0 ---
-double getUltraHeuristic(const string& text) {
-    if (text.empty()) return 0.50; // Trả về điểm tối thiểu thay vì 0
+// ======================================================================
+// MODULE 1: HỆ THỐNG ĐÁNH GIÁ NGỮ NGHĨA
+// ======================================================================
+double getHeuristicScore(const string& text) {
+    if (text.empty()) return 0.00;
     
-    // 1. ĐIỂM CƠ SỞ (Baseline): Dựa trên độ dài văn bản để tránh điểm 0 tuyệt đối
-    double score = (double)text.length() / 25.0; 
-    
+    double score = 0.5 + ((double)text.length() / 150.0);
     string low = text;
     transform(low.begin(), low.end(), low.begin(), ::tolower);
 
-    // 2. NHÓM TỪ KHÓA NGHI VẤN CAO (Trọng số 6.0 - 9.0)
-    static const vector<pair<string, double>> highRisk = {
-        {"not a drill", 9.0}, {"is this real", 8.5}, {"government hide", 9.5},
-        {"unbelievable", 7.0}, {"big if true", 8.0}, {"leaked footage", 9.0},
-        {"anonymous source", 7.5}, {"spread this", 6.0}, {"what they won't tell", 9.5},
-        {"shocking", 6.5}, {"terrorist", 5.0}, {"hostage", 5.0}, {"explosion", 5.5}
-    };
+    static const string t1_fake[] = {"not a drill", "spread this", "conspiracy", "hoax", "cover up", "scam", "deep state",
+                                     "sheeple", "media is hiding", "exposed", "truth about", "do your research", "fake news"};
+    static const string t2_fake[] = {"is this real", "unbelievable", "big if true", "shocking", "anonymous source", "leaked",
+                                     "wake up", "bombshell", "propaganda", "mind blowing", "rumor", "rumour", "secret"};
+    static const string t1_real[] = {"confirmed by", "official statement", "police report", "verified", "press release", "debunked",
+                                     "fact check", "authorities", "official sources", "nypd", "lapd", "bbc news", "reuters", "ap news"};
+    static const string t2_real[] = {"according to", "statement from", "spokesperson", "investigation", "police department",
+                                     "mayor", "announced", "briefing", "update"};
 
-    // 3. NHÓM TỪ KHÓA TRUNG TÍNH/BÁO CÁO (Để tweet có điểm nhưng không bị coi là fake)
-    static const vector<pair<string, double>> neutralPhrases = {
-        {"reporting", 3.0}, {"breaking news", 4.0}, {"update", 2.5},
-        {"witnessed", 3.5}, {"seen at", 3.0}, {"happening now", 3.5},
-        {"video shows", 4.0}, {"people are", 2.0}, {"police at", 3.5}
-    };
+    for (const auto& w : t1_fake) if (low.find(w) != string::npos) score += 10.0;
+    for (const auto& w : t2_fake) if (low.find(w) != string::npos) score += 5.0;
+    for (const auto& w : t1_real) if (low.find(w) != string::npos) score -= 10.0;
+    for (const auto& w : t2_real) if (low.find(w) != string::npos) score -= 5.0;
 
-    // 4. KHÁCH QUAN HÓA: Điểm trừ cho các nguồn xác thực (Penalty)
-    static const vector<pair<string, double>> trustFactors = {
-        {"confirmed by", -7.0}, {"official statement", -8.0}, {"bbc news", -6.0},
-        {"reuters", -6.0}, {"ap news", -6.0}, {"police report", -5.0},
-        {"verified account", -4.0}, {"sources say", -2.0}
-    };
-
-    for (auto& p : highRisk) if (low.find(p.first) != string::npos) score += p.second;
-    for (auto& n : neutralPhrases) if (low.find(n.first) != string::npos) score += n.second;
-    for (auto& t : trustFactors) if (low.find(t.first) != string::npos) score += t.second;
-
-    // 5. Thưởng điểm cho việc sử dụng Hashtag và CapsLock (Dấu hiệu lan truyền)
-    score += (count(text.begin(), text.end(), '#') * 2.5);
-    int upper = count_if(text.begin(), text.end(), ::isupper);
-    if (text.length() > 10 && (double)upper / text.length() > 0.3) score += 4.5;
-
-    // Đảm bảo điểm số luôn nằm trong khoảng hợp lý, tối thiểu là 1.0 nếu có chữ
-    return max(1.0, score); 
+    int exclamation = 0, question = 0, upper = 0;
+    for (char c : text) {
+        if (c == '!') exclamation++;
+        else if (c == '?') question++;
+        else if (isupper(c)) upper++;
+    }
+    
+    score += (exclamation * 2.0) + (question * 1.5);
+    if (text.length() > 10 && (double)upper / text.length() > 0.4) score += 8.0;
+    
+    return score;
 }
 
-// --- BFS TỐI ƯU TỐC ĐỘ: DEQUE & MEMORY OPTIMIZATION ---
-void calculateBFSSpeed(const json& structure, int& dp, int& sp) {
+// ======================================================================
+// MODULE 2: BFS LAN TRUYỀN
+// ======================================================================
+void calculateBFS(const json& structure, int& dp, int& sp) {
     dp = 0; sp = 0;
     if (!structure.is_object() || structure.empty()) return;
-
+    
     deque<pair<const json*, int>> q;
     for (auto& [k, v] : structure.items()) q.push_back({&v, 1});
-
+    
     while (!q.empty()) {
         auto [node, d] = q.front(); q.pop_front();
         sp++;
@@ -76,69 +69,164 @@ void calculateBFSSpeed(const json& structure, int& dp, int& sp) {
     }
 }
 
-// --- SMART FORMAT (Chống lệch CSV) ---
-string smartFormat(string t, size_t width) {
-    t = regex_replace(t, regex("http\\S+|[^\\x20-\\x7E]"), ""); 
-    t.erase(remove_if(t.begin(), t.end(), [](char c){ return c=='\n'||c=='\r'||c=='\t'||c=='|'; }), t.end());
-    if (t.length() > width) {
-        size_t lastSpc = t.find_last_of(" ", width - 4);
-        t = (lastSpc != string::npos && lastSpc > width/2) ? t.substr(0, lastSpc) : t.substr(0, width - 4);
-        t += "...";
+// ======================================================================
+// MODULE 3: CẮT CHỮ AN TOÀN
+// ======================================================================
+string fastFormat(const string& text, size_t width) {
+    string out;
+    out.reserve(width + 10);
+    bool in_space = false;
+    
+    for (size_t i = 0; i < text.length() && out.length() <= width + 5; ++i) {
+        if (text.compare(i, 4, "http") == 0) {
+            while (i < text.length() && text[i] != ' ') i++;
+            continue;
+        }
+        char c = text[i];
+        if (c >= 32 && c <= 126 && c != '|') {
+            if (c == ' ') {
+                if (!in_space && !out.empty()) { out += ' '; in_space = true; }
+            } else {
+                out += c; in_space = false;
+            }
+        }
     }
-    return t.append(max((int)0, (int)(width - t.length())), ' ');
+    
+    if (!out.empty() && out.back() == ' ') out.pop_back();
+    
+    if (out.length() > width) {
+        size_t cut_pos = width - 4; 
+        while (cut_pos > 0 && out[cut_pos] != ' ') cut_pos--; 
+        if (cut_pos == 0) cut_pos = width - 4; 
+        out = out.substr(0, cut_pos) + "...";
+    }
+    
+    out.resize(width, ' ');
+    return out;
 }
 
+// ======================================================================
+// MAIN ENGINE - SMOOTH STREAMING MODE
+// ======================================================================
 int main() {
+    // 1. Tối ưu luồng I/O của C++
+    ios_base::sync_with_stdio(false); 
+    cin.tie(NULL);
+    
     string root = fs::exists("./Pheme") ? "./Pheme" : "./pheme";
     ofstream out("input_for_model.csv");
     
-    const int W_ID = 20, W_AUTH = 15, W_SC = 8, W_DP = 6, W_SP = 6, W_TXT = 60;
-    out << "Thread_ID           | Author          | Score    | Depth  | Spread | Content_Snippet                                              | Label" << endl;
-    out << string(140, '-') << endl;
+    // KHÔNG dùng pubsetbuf nữa. 
+    // Mặc định C++ sẽ dùng buffer nội bộ cực kỳ tối ưu của hệ điều hành, giúp ghi file chảy mượt như nước.
+    
+    out << "Thread_ID                 | Author          | Score    | Depth  | Spread | Ver | Follow       | AccAge | Engage       | Src | Content_Snippet                                                                  | Label\n";
+    out << string(205, '-') << "\n";
 
-    cout << "\n[!] STATUS: RUNNING OPTIMIZED ENGINE..." << endl;
+    cout << "\n[!] STATUS: EXTRACTING DATA..." << endl;
+    
+    int total_processed = 0;
 
-    int total = 0;
+    // 2. Tái sử dụng vùng nhớ. Khai báo 1 lần duy nhất ngoài vòng lặp!
+    string fileContent;
+    fileContent.reserve(512 * 1024); // Đặt sẵn 512KB để không bao giờ phải cấp phát lại RAM.
+    ifstream fi; // Tái sử dụng 1 luồng đọc file duy nhất
+
     for (const auto& event : fs::directory_iterator(root)) {
         if (!event.is_directory()) continue;
+        
         for (const auto& type : fs::directory_iterator(event.path())) {
             if (!type.is_directory()) continue;
-            string folder = type.path().filename().string();
-            string label = (folder == "rumours") ? "fake" : "real";
-            if (folder.find("rumours") == string::npos) continue;
+            string label = (type.path().filename().string() == "rumours") ? "fake" : "real";
 
             for (const auto& thread : fs::directory_iterator(type.path())) {
                 if (!thread.is_directory() || thread.path().filename().string()[0] == '.') continue;
                 
-                fs::path sP = thread.path() / "structure.json", sD = thread.path() / "source-tweet";
-                if (!fs::exists(sD)) sD = thread.path() / "source-tweets";
-
-                if (fs::exists(sP) && fs::exists(sD)) {
-                    ifstream fsP(sP); json jS; try { fsP >> jS; } catch(...) { continue; }
-                    int dp, sp; calculateBFSSpeed(jS, dp, sp);
-
-                    for (const auto& f : fs::directory_iterator(sD)) {
-                        if (f.path().extension() == ".json") {
-                            ifstream fi(f.path()); json j;
+                fs::path sP = thread.path() / "structure.json";
+                int dp = 0, sp = 0;
+                
+                // Đọc file structure
+                if (fs::exists(sP)) {
+                    fi.open(sP, ios::binary | ios::ate);
+                    if (fi.is_open()) {
+                        streamsize size = fi.tellg();
+                        fi.seekg(0, ios::beg);
+                        fileContent.resize(size); // Chỉ đổi kích thước, không tạo vùng nhớ mới
+                        if (fi.read(&fileContent[0], size)) {
                             try {
-                                fi >> j;
-                                string txt = j.value("text", ""), auth = j["user"].value("screen_name", "unk");
-                                out << smartFormat(thread.path().filename().string(), W_ID) << " | "
-                                    << smartFormat(auth, W_AUTH) << " | "
-                                    << left << setw(W_SC) << fixed << setprecision(2) << getUltraHeuristic(txt) << " | "
-                                    << left << setw(W_DP) << dp << " | "
-                                    << left << setw(W_SP) << sp << " | "
-                                    << smartFormat(txt, W_TXT) << " | " << label << endl;
-                                total++;
-                                break;
-                            } catch(...) { continue; }
+                                json jS = json::parse(fileContent, nullptr, false);
+                                if (!jS.is_discarded()) calculateBFS(jS, dp, sp);
+                            } catch(...) {}
                         }
+                        fi.close();
+                    }
+                }
+
+                vector<string> folders = {"source-tweet", "source-tweets", "reactions"};
+                int reaction_count = 0; 
+                string thread_id = fastFormat(thread.path().filename().string(), 25); 
+
+                for (const string& fName : folders) {
+                    fs::path dirPath = thread.path() / fName;
+                    if (!fs::exists(dirPath)) continue;
+
+                    bool isSource = (fName.find("source") != string::npos);
+
+                    for (const auto& f : fs::directory_iterator(dirPath)) {
+                        if (f.path().extension() != ".json") continue; 
+
+                        fi.open(f.path(), ios::binary | ios::ate);
+                        if (!fi.is_open()) continue;
+                        
+                        streamsize size = fi.tellg();
+                        fi.seekg(0, ios::beg);
+                        fileContent.resize(size);
+                        
+                        if (fi.read(&fileContent[0], size)) {
+                            try {
+                                json j = json::parse(fileContent, nullptr, false);
+                                if (!j.is_discarded()) {
+                                    string txt = j.value("text", "");
+                                    int followers = j["user"].value("followers_count", 0);
+                                    bool isQualityReaction = (!isSource && (followers > 50 || txt.length() > 40));
+
+                                    if (isSource || (isQualityReaction && reaction_count < 3)) {
+                                        if (!isSource) reaction_count++; 
+
+                                        string auth = j["user"].value("screen_name", "unk");
+                                        int ver = j["user"].value("verified", false) ? 1 : 0;
+                                        int friends = max(1, j["user"].value("friends_count", 1));
+                                        double engage = (double)followers / friends;
+                                        
+                                        string cAt = j["user"].value("created_at", "");
+                                        int age = (cAt.length() >= 4) ? (2026 - stoi(cAt.substr(cAt.length() - 4))) : 0;
+
+                                        // \n giúp ghi vào buffer nhanh chóng, HĐH sẽ tự flush khi buffer đầy
+                                        out << thread_id << " | "
+                                            << fastFormat(auth, 15) << " | "
+                                            << left << setw(8) << fixed << setprecision(2) << getHeuristicScore(txt) << " | "
+                                            << left << setw(6) << dp << " | "
+                                            << left << setw(6) << sp << " | "
+                                            << left << setw(3) << ver << " | "
+                                            << left << setw(12) << followers << " | "
+                                            << left << setw(6) << age << " | "
+                                            << left << setw(12) << fixed << setprecision(2) << engage << " | "
+                                            << left << setw(3) << (isSource ? "1" : "0") << " | "
+                                            << fastFormat(txt, 80) << " | "
+                                            << label << "\n";
+                                        
+                                        total_processed++;
+                                    }
+                                }
+                            } catch(...) {}
+                        }
+                        fi.close();
                     }
                 }
             }
         }
     }
+    
     out.close();
-    cout << "[!] SUCCESS: Successfully processing dataset.\n" << endl;
+    cout << "\n[!] SUCCESS: Finished processing " << total_processed << " samples.\n";
     return 0;
 }
