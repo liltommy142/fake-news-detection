@@ -110,3 +110,5 @@ data/processed/
 # Results
 results/figures/
 results/*.txt
+
+.vscode/
