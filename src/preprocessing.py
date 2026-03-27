@@ -1,4 +1,3 @@
-from utils import TreeNode, build_thread_tree, ensure_dir  # type: ignore
 import os
 import sys
 import json
@@ -11,6 +10,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.append(CURRENT_DIR)
 
+from utils import TreeNode, build_thread_tree, ensure_dir  # type: ignore
 
 # ====================== UTILITIES ======================
 
@@ -201,12 +201,12 @@ def main():
     )
     parser.add_argument(
         "--data-dir",
-        default="../data/raw/all-rnr-annotated-threads",
+        default="data/raw/all-rnr-annotated-threads",
         help="Thư mục chứa PHEME (mặc định: ../data/raw/all-rnr-annotated-threads)",
     )
     parser.add_argument(
         "--out-dir",
-        default="../data/processed",
+        default="data/processed",
         help="Thư mục output (mặc định: ../data/processed)",
     )
     parser.add_argument(
