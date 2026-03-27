@@ -13,44 +13,95 @@ using json = nlohmann::json;
 using namespace std;
 
 // ======================================================================
-// MODULE 1: HỆ THỐNG ĐÁNH GIÁ NGỮ NGHĨA
+// MODULE 1: CẤU TRÚC ĐẶC TRƯNG NGÔN NGỮ (NLP FEATURES)
 // ======================================================================
-double getHeuristicScore(const string& text) {
-    if (text.empty()) return 0.00;
+struct NLPFeatures {
+    double negative_score = 0.0;
+    double positive_score = 0.0;
+    double clickbait_score = 0.0;
+    double caps_ratio = 0.0;
+    double punct_density = 0.0;
+    double avg_word_len = 0.0;
+};
+
+// ======================================================================
+// MODULE 2: HỆ THỐNG TỪ ĐIỂN TỐI ƯU BỘ NHỚ (CACHE-FRIENDLY)
+// ======================================================================
+static const vector<string> fake_lexicon = {
+    "shocking", "unbelievable", "not a drill", "spread this", "conspiracy",
+    "hoax", "cover up", "scam", "deep state", "sheeple", "media is hiding",
+    "exposed", "truth about", "do your research", "fake news", "is this real",
+    "big if true", "anonymous source", "leaked", "wake up", "bombshell",
+    "propaganda", "mind blowing", "rumor", "rumour", "secret", "confidential",
+    "must see", "miracle", "urgent", "censored", "false flag", "mainstream media", 
+    "click here", "you won't believe", "viral",
+    "hot", "drama", "scandal", "full clip", "uncensored", "leaked clip",
+    "netizen", "netizens", "idol", "showbiz", "sugar baby", "sugar daddy", 
+    "hot girl", "hot boy", "vip", "link in bio", "inbox", "ib", "share gấp"
+};
+
+static const vector<string> real_lexicon = {
+    "confirmed by", "official statement", "police report", "verified",
+    "press release", "debunked", "fact check", "authorities", "official sources",
+    "bbc news", "reuters", "ap news", "according to", "statement from",
+    "spokesperson", "investigation", "police department", "mayor", "announced",
+    "briefing", "update", "testimony", "evidence", "court ruling", "witnesses", 
+    "reported by", "academic study", "scientific", "expert says", "press conference",
+    "vtv", "vnexpress", "tuoi tre", "thanh nien", "ministry of", "health department",
+    "public security", "official page", "press agency", "government portal"
+};
+
+// ======================================================================
+// MODULE 3: TRÍCH XUẤT NGỮ NGHĨA (FEATURE ENGINEERING ĐỒNG ĐỀU)
+// ======================================================================
+NLPFeatures extractNLPFeatures(const string& text) {
+    NLPFeatures feat;
+    if (text.empty()) return feat;
+
+    int text_len = text.length();
+    int upper_count = 0, punct_count = 0, char_count = 0, word_count = 0;
+    bool in_word = false;
     
-    double score = 0.5 + ((double)text.length() / 150.0);
-    string low = text;
-    transform(low.begin(), low.end(), low.begin(), ::tolower);
+    string low;
+    low.reserve(text_len);
 
-    static const string t1_fake[] = {"not a drill", "spread this", "conspiracy", "hoax", "cover up", "scam", "deep state",
-                                     "sheeple", "media is hiding", "exposed", "truth about", "do your research", "fake news"};
-    static const string t2_fake[] = {"is this real", "unbelievable", "big if true", "shocking", "anonymous source", "leaked",
-                                     "wake up", "bombshell", "propaganda", "mind blowing", "rumor", "rumour", "secret"};
-    static const string t1_real[] = {"confirmed by", "official statement", "police report", "verified", "press release", "debunked",
-                                     "fact check", "authorities", "official sources", "nypd", "lapd", "bbc news", "reuters", "ap news"};
-    static const string t2_real[] = {"according to", "statement from", "spokesperson", "investigation", "police department",
-                                     "mayor", "announced", "briefing", "update"};
-
-    for (const auto& w : t1_fake) if (low.find(w) != string::npos) score += 10.0;
-    for (const auto& w : t2_fake) if (low.find(w) != string::npos) score += 5.0;
-    for (const auto& w : t1_real) if (low.find(w) != string::npos) score -= 10.0;
-    for (const auto& w : t2_real) if (low.find(w) != string::npos) score -= 5.0;
-
-    int exclamation = 0, question = 0, upper = 0;
     for (char c : text) {
-        if (c == '!') exclamation++;
-        else if (c == '?') question++;
-        else if (isupper(c)) upper++;
+        low += tolower(c); 
+        if (isupper(c)) upper_count++;
+        if (c == '!' || c == '?' || c == '*') punct_count++;
+        
+        if (isalpha(c)) {
+            char_count++;
+            if (!in_word) { word_count++; in_word = true; }
+        } else {
+            in_word = false;
+        }
     }
-    
-    score += (exclamation * 2.0) + (question * 1.5);
-    if (text.length() > 10 && (double)upper / text.length() > 0.4) score += 8.0;
-    
-    return score;
+
+    feat.caps_ratio = (double)upper_count / text_len * 100.0;
+    feat.punct_density = (double)punct_count / text_len * 100.0;
+    if (word_count > 0) feat.avg_word_len = (double)char_count / word_count;
+
+    for (const string& word : fake_lexicon) {
+        if (low.find(word) != string::npos) feat.clickbait_score += 1.0;
+    }
+    for (const string& word : real_lexicon) {
+        if (low.find(word) != string::npos) feat.positive_score += 1.0;
+    }
+
+    if (feat.caps_ratio > 15.0) feat.clickbait_score *= 1.5; 
+    if (feat.punct_density > 5.0) feat.clickbait_score *= 1.2; 
+
+    if (feat.caps_ratio < 5.0 && feat.punct_density < 2.0 && feat.avg_word_len >= 4.5) {
+        feat.positive_score *= 1.5; 
+    }
+
+    feat.negative_score = (feat.clickbait_score * 2.0) + (feat.punct_density * 0.5) + (feat.caps_ratio * 0.2);
+    return feat;
 }
 
 // ======================================================================
-// MODULE 2: BFS LAN TRUYỀN
+// MODULE 4: BFS LAN TRUYỀN
 // ======================================================================
 void calculateBFS(const json& structure, int& dp, int& sp) {
     dp = 0; sp = 0;
@@ -70,11 +121,11 @@ void calculateBFS(const json& structure, int& dp, int& sp) {
 }
 
 // ======================================================================
-// MODULE 3: CẮT CHỮ AN TOÀN
+// MODULE 5: CẮT CHỮ VÀ LÀM SẠCH ĐỊNH DẠNG
 // ======================================================================
 string fastFormat(const string& text, size_t width) {
     string out;
-    out.reserve(width + 10);
+    out.reserve(width + 10); 
     bool in_space = false;
     
     for (size_t i = 0; i < text.length() && out.length() <= width + 5; ++i) {
@@ -105,31 +156,77 @@ string fastFormat(const string& text, size_t width) {
     return out;
 }
 
+string cleanTextForCSV(const string& text) {
+    string out;
+    out.reserve(text.length()); 
+    bool in_space = false;
+    
+    for (size_t i = 0; i < text.length(); ++i) {
+        if (text.compare(i, 4, "http") == 0) {
+            while (i < text.length() && text[i] != ' ') i++;
+            continue;
+        }
+        
+        char c = text[i];
+        if (c == '\n' || c == '\r' || c == '|' || c == '\t') {
+            c = ' ';
+        }
+        
+        if (c >= 32 && c <= 126) {
+            if (c == ' ') {
+                if (!in_space && !out.empty()) { out += ' '; in_space = true; }
+            } else {
+                out += c; in_space = false;
+            }
+        }
+    }
+    
+    if (!out.empty() && out.back() == ' ') out.pop_back();
+    return out;
+}
+
 // ======================================================================
-// MAIN ENGINE - SMOOTH STREAMING MODE
+// MAIN ENGINE
 // ======================================================================
 int main() {
-    // 1. Tối ưu luồng I/O của C++
     ios_base::sync_with_stdio(false); 
     cin.tie(NULL);
     
     string root = fs::exists("./Pheme") ? "./Pheme" : "./pheme";
-    ofstream out("input_for_model.csv");
-    
-    // KHÔNG dùng pubsetbuf nữa. 
-    // Mặc định C++ sẽ dùng buffer nội bộ cực kỳ tối ưu của hệ điều hành, giúp ghi file chảy mượt như nước.
-    
-    out << "Thread_ID                 | Author          | Score    | Depth  | Spread | Ver | Follow       | AccAge | Engage       | Src | Content_Snippet                                                                  | Label\n";
-    out << string(205, '-') << "\n";
+    if (!fs::exists(root)) {
+        cout << "[!] Error: Data folder 'Pheme' not found in current directory!" << '\n';
+        return 1;
+    }
 
-    cout << "\n[!] STATUS: EXTRACTING DATA..." << endl;
+    ofstream out("input_for_model.csv");
+
+    cout << "\n[!] STATUS: EXTRACTING DATA..." << '\n';
+
+    // CĂN CHỈNH HEADER MỚI (Viết đầy đủ tên, đã đo khoảng cách)
+    out << left 
+        << setw(25) << "Thread_ID" << " | "
+        << setw(15) << "Author" << " | "
+        << setw(15) << "Negative_Score" << " | "
+        << setw(15) << "Positive_Score" << " | "
+        << setw(16) << "Clickbait_Score" << " | "
+        << setw(12) << "Caps_Ratio" << " | "
+        << setw(20) << "Punctuation_Density" << " | "
+        << setw(16) << "Avg_Word_Length" << " | "
+        << setw(6)  << "Depth" << " | "
+        << setw(7)  << "Spread" << " | "
+        << setw(9)  << "Verified" << " | "
+        << setw(12) << "Followers" << " | "
+        << setw(12) << "Account_Age" << " | "
+        << setw(12) << "Engagement" << " | "
+        << setw(10) << "Is_Source" << " | "
+        << "Content_Snippet" << " | " 
+        << "Label\n";
+    out << string(235, '-') << "\n";
     
     int total_processed = 0;
-
-    // 2. Tái sử dụng vùng nhớ. Khai báo 1 lần duy nhất ngoài vòng lặp!
     string fileContent;
-    fileContent.reserve(512 * 1024); // Đặt sẵn 512KB để không bao giờ phải cấp phát lại RAM.
-    ifstream fi; // Tái sử dụng 1 luồng đọc file duy nhất
+    fileContent.reserve(512 * 1024); 
+    ifstream fi; 
 
     for (const auto& event : fs::directory_iterator(root)) {
         if (!event.is_directory()) continue;
@@ -144,13 +241,12 @@ int main() {
                 fs::path sP = thread.path() / "structure.json";
                 int dp = 0, sp = 0;
                 
-                // Đọc file structure
                 if (fs::exists(sP)) {
                     fi.open(sP, ios::binary | ios::ate);
                     if (fi.is_open()) {
                         streamsize size = fi.tellg();
                         fi.seekg(0, ios::beg);
-                        fileContent.resize(size); // Chỉ đổi kích thước, không tạo vùng nhớ mới
+                        fileContent.resize(size); 
                         if (fi.read(&fileContent[0], size)) {
                             try {
                                 json jS = json::parse(fileContent, nullptr, false);
@@ -200,18 +296,27 @@ int main() {
                                         string cAt = j["user"].value("created_at", "");
                                         int age = (cAt.length() >= 4) ? (2026 - stoi(cAt.substr(cAt.length() - 4))) : 0;
 
-                                        // \n giúp ghi vào buffer nhanh chóng, HĐH sẽ tự flush khi buffer đầy
-                                        out << thread_id << " | "
-                                            << fastFormat(auth, 15) << " | "
-                                            << left << setw(8) << fixed << setprecision(2) << getHeuristicScore(txt) << " | "
-                                            << left << setw(6) << dp << " | "
-                                            << left << setw(6) << sp << " | "
-                                            << left << setw(3) << ver << " | "
-                                            << left << setw(12) << followers << " | "
-                                            << left << setw(6) << age << " | "
-                                            << left << setw(12) << fixed << setprecision(2) << engage << " | "
-                                            << left << setw(3) << (isSource ? "1" : "0") << " | "
-                                            << fastFormat(txt, 80) << " | "
+                                        NLPFeatures nlp = extractNLPFeatures(txt);
+                                        string cleaned_content = cleanTextForCSV(txt); 
+
+                                        // CĂN CHỈNH DỮ LIỆU KHỚP VỚI HEADER
+                                        out << left
+                                            << setw(25) << thread_id << " | "
+                                            << setw(15) << fastFormat(auth, 15) << " | "
+                                            << setw(15) << fixed << setprecision(2) << nlp.negative_score << " | "
+                                            << setw(15) << fixed << setprecision(2) << nlp.positive_score << " | "
+                                            << setw(16) << fixed << setprecision(2) << nlp.clickbait_score << " | "
+                                            << setw(12) << fixed << setprecision(2) << nlp.caps_ratio << " | "
+                                            << setw(20) << fixed << setprecision(2) << nlp.punct_density << " | "
+                                            << setw(16) << fixed << setprecision(2) << nlp.avg_word_len << " | "
+                                            << setw(6)  << dp << " | "
+                                            << setw(7)  << sp << " | "
+                                            << setw(9)  << ver << " | "
+                                            << setw(12) << followers << " | "
+                                            << setw(12) << age << " | "
+                                            << setw(12) << fixed << setprecision(2) << engage << " | "
+                                            << setw(10) << (isSource ? "1" : "0") << " | "
+                                            << cleaned_content << " | " 
                                             << label << "\n";
                                         
                                         total_processed++;
@@ -227,6 +332,6 @@ int main() {
     }
     
     out.close();
-    cout << "\n[!] SUCCESS: Finished processing " << total_processed << " samples.\n";
+    cout << "\n[!] SUCCESS: Finished processing.\n";
     return 0;
 }
