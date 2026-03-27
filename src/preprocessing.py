@@ -1,3 +1,4 @@
+from utils import TreeNode, build_thread_tree, ensure_dir  # type: ignore
 import os
 import sys
 import json
@@ -9,8 +10,6 @@ from typing import List, Dict, Any
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.append(CURRENT_DIR)
-
-from utils import TreeNode, build_thread_tree, ensure_dir  # type: ignore
 
 
 # ====================== UTILITIES ======================
@@ -85,7 +84,8 @@ def load_pheme_threads(
 
     print(f"📂 Tìm thấy {len(events)} event trong PHEME.")
     if max_events is not None:
-        print(f"   → Đang giới hạn còn {len(events)} event (max_events={max_events}).")
+        print(
+            f"   → Đang giới hạn còn {len(events)} event (max_events={max_events}).")
 
     for event_idx, event in enumerate(events, start=1):
         event_path = os.path.join(data_dir, event)
