@@ -112,3 +112,8 @@ results/figures/
 results/*.txt
 
 .vscode/
+pheme/
+
+dataset_processor.exe
+*.pkl
+*.csv
