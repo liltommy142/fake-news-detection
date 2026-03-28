@@ -115,5 +115,3 @@ results/*.txt
 pheme/
 
 dataset_processor.exe
-*.pkl
-*.csv
